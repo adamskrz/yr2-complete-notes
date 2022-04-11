@@ -68,7 +68,7 @@ OS structure is large and complex.
 **Process in memory:**
 
 - Text – stores instructions
-- Data – stores the global variables
+- Data – stores the global and static variables
 - Heap – dynamically allocated memory
 - Stack – stores local variables and function parameters e.g. return address of the function
 
@@ -123,6 +123,7 @@ There are 2 main types of schedulers: short term and long term.
 **Short term scheduler:**
 
 - Selects the next process to be executed from the ready queue
+  - Not necessarily FIFO - can be priority queue or linked list based on scheduling algorithm
 - Invoked very frequently – at least once every 100ms
 - Must be very fast – if it takes 10ms to decide a CPU burst on a process of 100ms, then 9% of CPU time is wasted
 
@@ -134,6 +135,57 @@ There are 2 main types of schedulers: short term and long term.
 - Processes can be IO bound (more time doing IO than computation – short CPU burst) or CPU bound (more time doing computation – long CPU burst) - the long term scheduler tries to get a good mix of these processes
 
 Time-sharing systems like Linux/Windows don’t have a long term scheduler and dump all processes on the short term scheduler. Long term schedulers are only used in computational workstations or similar where maximising CPU usage is needed and fast response to user input isn't required.
+
+**CPU Scheduling Goals:**
+
+- **Maximise CPU utilisation** - proportion of time the CPU is busy (not idle)
+- **Maximise Throughput** - Number of process that complete their execution per time unit
+- **Minimise turnaround time** - Amount of time to execute a particular process
+- **Minimise waiting time** - Amount of time a process waits in the ready queue
+- **Minimise response time** - Amount of time taken from request submitted to first response (very important)
+
+### **When does a scheduler schedule?**
+
+**Non-preemptive scheduling:** A process voluntarily stops and gives scheduler the CPU.
+
+**Preemptive scheduling:** A process is forced to stop and give the scheduler the CPU. In this case, a process may have been added to the ready queue and could have higher priority than currently running process so this must be checked. This can cause race conditions if a process is '*preempted*' (forced to stop) while updating shared data (outside a critical region) that is accessed by another scheduled process. 
+
+- A process switches from running to waiting (non-preemptive)
+- A process switches from running to ready (preemptive)
+- A process switches from waiting to ready (preemptive)
+- A process terminates (non-preemptive)
+
+### **Scheduling algorithms**
+
+**First come first serve (FCFS):**
+
+- Tasks assigned to the CPU in order of arrival.
+- Can lead to un-optimal average waiting time, varies greatly depending on arrival sequence.
+- Never does preemptive scheduling.
+
+**Shortest job first (SJF):**
+
+- Process assigned in order of increasing CPU burst time.
+- Always gives the smallest average waiting time, but may cause a long CPU burst time process a large wait time.
+- CPU burst time for a process cannot be known: the scheduler estimates the length of time of each process.
+  - This can be done using 'Exponential Moving Average'
+  - ![Exponential moving average diagram](exponential_moving_average.png)
+- Can be preemptive or not: if preemptive, then CPU is stolen and runs the scheduler each time a new process joins the ready queue (preemptive gives better results assuming 0 overhead).
+
+**Priority scheduling:**
+
+- Each process is given a priority and assigned in order of priority.
+- Can be preemptive or not, like SJF.
+- Starvation is an issue - very low priority processes may never get scheduled if there is a large amount of incoming processes.
+  - '*Aging*' solves this my gradually increasing the priority of processes that haven't been scheduled.
+
+**Round robin (RR):**
+
+- CPU runs in small bursts of time quantum '*q*'. After this time, the process is preempted and added to the end of the ready queue.
+- Generally new processes are added to the end of the queue - assigned in order of arrival.
+- For N processes and time quantum *q*, each process gets 1/N of the CPU time in chunks of at most *q* time units at once. No process waits more than (N-1)\**q* after being added to the ready queue.
+- If *q* is too large, then this becomes FCFS and if *q* is too small, then there are many context switches and high overhead.
+- *q* is typically 10-100ms (where a context switch takes < 10us).
 
 ## **Process creation**
 
@@ -159,7 +211,7 @@ Processes are identified using a process identifier - the *'PID'* (an integer in
 **Address space:**
 
 - 2 options:
-  - Child’s address space and program is duplicate of parents (heap and stack are copied, not shared)
+  - Child’s address space and program is duplicate of parents (text, data, heap and stack are copied, not shared)
   - Child loads a new program into address space (no similarities)
 
 **fork():** C command to create child processes that is an exact copy of the parent (including data/heap/stack) and continues from the line after fork(). In the child process, fork() returns 0 and in the parent process fork() returns the PID of the child (always an integer above 0).
@@ -172,7 +224,7 @@ Between child process termination and parents receiving the exit code, the child
 
 Parent processes can terminate the execution of child process using abort() (in C) call. This is used when child takes up too much resources, no longer required or similar.
 
-### **What happens when parent exits before children exit?**
+### **What happens when a parent exits before their children exit?**
 
 Children become *'orphan processes'*. In UNIX systems, the init process is assigned as the parent process. The init process periodically issues wait() (in C) to collect the exit status of zombie orphan children to release their PIDs and entries in process table. Some OS don't support orphan processes (or child process must be specified to continue even if the parent exits), in which case orphan processes are immediately executed and removed from the process table.
 
@@ -238,3 +290,125 @@ In C, the pipe() command creates a pipe by creating 2 temporary files and linkin
 X is set to 10 above
 
 **Named pipes:** Exist outside of process run-time, in a directory as a file. These do not require a parent-child relationship that is typically needed in ordinary pipes, and once established many processes can use it for communication.
+
+# Threads
+
+A '*thread*' is a unit of CPU execution: it counts the number of chains of execution in a process. e.g. a single-threaded process has one chain of execution running each line sequentially.
+
+Each thread shares the same code & heap and have individual stacks, thread IDs & register sets.
+![Thread diagram](Thread_diagram.png "Thread diagram")
+
+Threads are an alternative to having multiple processes when multiprocessing is required that needs to occur on the same code/data e.g. separate threads for reading in data and processing the data. Thread creation is much more efficient (less overhead) than process creation due to more shared resources, being 30x faster in Solaris OS, as well as thread switching being faster than process switching (context switching).
+
+Web-servers are an example of a good use of multithreading, where many clients will attempt to concurrently access the server. Each client could be handled by their own thread, allowing actual concurrent access through parallel execution. Threads are used and not processes, as the procedure of handling a client request is the same, so the code can be shared.
+
+### **Thread advantages:**
+
+- **Economy** - faster and more efficient that process creation and switching
+- **Scalability** - allows for large number of concurrent tasks
+- **Responsiveness** - allows continued execution of other threads if there is a section waiting on IO/data input/etc
+- **Resource Sharing** - threads share heap, so easy communication between threads
+
+### **Concurrency VS Parallelism**
+
+**Concurrency:** More than one task making progress - a single CPU can achieve this by interleaving process execution so they appear to be running at the same time.
+
+**Parallelism:** Performing more than once task simultaneously (implies concurrency) - requires a multicore CPU.
+
+**Data Parallelism** - distributes subsets of a data set across multiple cores, performing the same type of operation on each subset/core. e.g. summing contents of an array.
+
+**Task parallelism:** - performing different tasks on the same data set simultaneously. e.g. finding the sum and mean of an array.
+
+![Task and data parallelism](task_data_parallelism.png "Task and data parallelism")
+
+### **Amdahl's Law**
+
+![Amdahl's law](Amdahl_law.png "Amdahl's law")
+Where P = proportion of process that can be parallelised using N cores and there is no overhead from adding parallelism.
+
+## **Thread Synchronisation**
+
+Threads must be synchronised in accesses to shared variables/memory/files. This is to ensure that changes made by threads are not overwritten by other threads with older versions of the data.
+
+![Failed thread synchronisation](threading_issues.png)
+
+This is a '*race condition*', where the last thread to finish writes their value to the shared variable and only that write matters. Proper thread synchronisation eliminates all race conditions.
+
+### **Mutex locks**
+
+Mutex locks synchronise threads by forcing them to acquire a lock before performing operations on shared variables. A mutex lock can only be acquired by one thread at a time, and so other threads wait at the point of acquiring the lock and continue once they have it.
+
+![Mutex lock example](mutex_lock_example.png)
+
+### **Semaphores**
+
+### **Conditions**
+
+## **Thread types and Threading models**
+
+There are two different thread types: user threads and kernel threads.
+
+### User-level threads
+
+- Implemented by user programs in the user space
+- Kernel is not aware of their existence and does not manage them, no kernel access overhead
+- Cannot run in parallel on different CPU cores, but can run concurrently
+
+### Kernel-level threads
+
+- Implemented by the kernel in the kernel space
+- Kernel can schedule them on different CPU cores - true parallelism
+- Managed by kernel, so increased kernel overhead
+
+### **Threading Models**
+
+**Many-to-one:** Many user-level threads are mapped to a single kernel thread.
+
+- Advantages
+  - Only a single kernel thread, little overhead
+- Disadvantages
+  - Cannot run in parallel due to only a single kernel thread
+  - A blocking thread causes all threads to stop until unblocked
+
+**One-to-one:** Each user-level thread has its own kernel thread. (Used )
+
+- Advantages
+  - Other threads can run while one is blocking
+  - Threads can run on different cores in parallel
+- Disadvantages
+  - If many kernel threads are created then the overhead becomes large and can slow the system
+
+**Many-to-many:** Many-to-one, but there are multiple kernel threads with unique processes mapped to them.
+
+- Advantages
+  - The number of kernel threads and amount of user threads mapped to each can be varied in order to increase performance and reduce overhead (still more than many-to-one)
+  - Kernel threads can run in parallel
+- Disadvantages
+  - User threads can still be blocked if running on the same kernel thread
+  - Complex to implement
+
+## **Server threading models**
+
+- One thread per request
+  - Each new request creates a new thread to handle it
+  - High overhead as threads are repeatedly created and destroyed
+  - High traffic will create large numbers of threads, slowing down the system
+  - Can potentially handle any amount of clients concurrently - no queues
+- Thread pool
+  - Fixed number of 'worker' threads that handle requests from a queue
+    - More efficient than creating and destroying threads
+    - Number of threads can be optimised for a specific system to ensure no system slow down from too many threads
+  - Requests are added to the queue by the main server thread
+  - Synchronisation is required to ensure that no threads attempt to handle the same request and that a request isn't left unhandled
+
+## **Signal Handling**
+
+Used to notify a process about occurrence of events. A signal is generated by a particular event, the signal is delivered to the process it applies to and then the process handles the signal.
+
+**Synchronous:** Internally generated by the process, e.g. runtime logic errors like division by 0 or illegal memory access.
+
+**Asynchronous:** Externally generated, e.g. terminating the process from the command line.
+
+Every signal has a default handler in the process provided by the kernel, e.g. the default handler for SIGINT terminates the process. '*user-defined*' signal handlers can be created by the process that overrides the default handler. Any signal handlers defined by the process can only use '*signal safe*' commands.
+
+In multi-threaded programs, signals can be delivered to all or specific threads. *Synchronous* signals are generally sent to only the thread generating the signal, while *Asynchronous* signals are usually sent to all threads, e.g. SIGINT.
