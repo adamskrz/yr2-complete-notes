@@ -326,7 +326,9 @@ Web-servers are an example of a good use of multithreading, where many clients w
 ![Amdahl's law](Amdahl_law.png "Amdahl's law")
 Where P = proportion of process that can be parallelised using N cores and there is no overhead from adding parallelism.
 
-## **Thread Synchronisation**
+## **Thread (and process) Synchronisation**
+
+Threads and processes will be referred to as just threads from now on as it is essentially the same.
 
 Threads must be synchronised in accesses to shared variables/memory/files. This is to ensure that changes made by threads are not overwritten by other threads with older versions of the data.
 
@@ -334,15 +336,205 @@ Threads must be synchronised in accesses to shared variables/memory/files. This 
 
 This is a '*race condition*', where the last thread to finish writes their value to the shared variable and only that write matters. Proper thread synchronisation eliminates all race conditions.
 
-### **Mutex locks**
+A section of code where a thread updates shared variables is called a '*critical section*'. When one thread is in a critical section pertaining to a shared variable, no other thread should be in a critical section that uses that same shared variable - this is '*mutual exclusion*'.
+
+### **The Critical Section Problem**
+
+**Critical Section Problem:** design a protocol such that no two threads can concurrently execute critical sections affecting the same shared variables.
+
+**Ideal Solution Criteria:**
+
+- **Mutual Exclusion** - if thread Pi is executing its critical section, no others can be in theirs.
+- **Progress** - if no thread is in a critical section and 1 or more threads are waiting to enter theirs, then one of the waiting threads must be able to enter the critical section.
+- **Bounded Waiting** - No thread should wait indefinitely to enter the critical section while other threads are able to enter and exit their critical sections continually (unless there are other threads that do the same job as the waiting thread, e.g. in a thread pool handling web server requests).
+
+**Peterson's Algorithm:**
+
+- Each thread sets a flag indicating they wish to enter the critical section.
+- Each thread then sets a shared turn variable to indicate it is another thread's turn in the critical section and not their own.
+- Waits (repeats a while loop) until no other thread wants to enter the critical section or turn is set to that thread.
+- ![Peterson's algorithm](peterson_algorithm.png)
+- Uses busy-wait polling - inefficient use of CPU time.
+- May fail in modern architectures.
+  - New CPUs have out-of-order execution and may execute write operations in a different order to how they were written if no direct conflicts between them to increase efficiency.
+  - ![Peterson's algorithm out of order failure](peterson_out_of_order_fail.png)
+
+### **Sychronisation Primitives**
+
+Custom hardware based solutions are generally inaccessible to programers, so OS designers build software tools to solve the critical section problem.
+
+### Mutex locks
 
 Mutex locks synchronise threads by forcing them to acquire a lock before performing operations on shared variables. A mutex lock can only be acquired by one thread at a time, and so other threads wait at the point of acquiring the lock and continue once they have it.
 
 ![Mutex lock example](mutex_lock_example.png)
 
+All locking/unlocking is performed '*atomically*' - as a uninterruptible instruction (CPU can't switch threads during it). This is usually done using special atomic hardware instructions.
+
+**test_and_set atomic instructions:**
+
+- Returns the original value of the passed parameter **target** and sets the new value of **target** to true.
+- Implemented as an atomic hardware operations (can be multiple hardware instructions that cannot be interrupted).
+- Does not satisfy ideal solution criteria on its own, as it is possible for a single thread to repeated release and acquire the same lock depending on order of thread execution.
+  - ![test_and_set example](test_and_set.png)
+- Satisfies all criteria when implemented with the shared **waiting** array to identify the next waiting process and ensure that no process repeatedly takes the lock.
+  - ![test_and_set with waiting example](test_and_set_with_waiting.png)
+
 ### **Semaphores**
 
+Semaphores have integer values: a 0 value indicates that the semaphore is not available (thread can't enter critical section) and a positive value indicates that it is available. Threads that 'acquire' the semaphore decrease its value by 1 and threads that release the semaphore increase its value by 1. This allows for multiple (but a specified amount) threads to enter critical sections at once.
+
+- '*wait(semaphore)*' is the atomic operation used to acquire the semaphore by checking if the semaphore is 0, waiting until it becomes positive then decrementing it by 1.
+- '*signal(semaphore)*' is an atomic operation and releases the semaphore by incrementing it by 1.
+
 ### **Conditions**
+
+Condition variables are shared variable where a thread can wait until another thread signals that variable to indicate the thread should continue.
+
+- '*wait(cond)*' - the thread waits until woken by the condition being signalled.
+- '*signal(cond)*' - a single thread waiting on 'cond' is woken and continues.
+- '*broadcast(cond)*' - all threads waiting on 'cond' are woken and continue.
+
+### **Synchronisation issues**
+
+**Deadlock:**
+
+- Multiple threads waiting indefinitely for other waiting threads to take an action.
+  - e.g. A is waiting for B to do something and B is waiting for A to do something - neither make any progress and are in deadlock.
+  - S and Q are semaphores initialised to 1.
+    - ![Semaphore deadlock example](semaphore_deadlock.png)
+    - No deadlock can occur if Process 1 has same order of acquiring semaphores as Process 0.
+
+**Modelling deadlocks:**
+
+A system contains:
+
+- Different resources R1, R2, …, Rm
+  - Mutex locks, CPUs, I/O devices, etc
+- Each resource Ri has Wi instances
+  - 3 mutex locks, 8 CPUs, etc
+- A set of processes {P0, P1, …, Pn}
+- Each process utilises a resource by
+  - Request
+  - Use
+  - Release
+
+Necessary conditions for a deadlock:
+
+- Mutual exclusion - only 1 process can use a resource at a time
+- Hold and wait - there must be a process holding some resources while waiting to acquire additional resources held by other processes
+- No pre-emption - a resource can only be released voluntarily by the process holding it once the task using it is complete
+- Circular wait - there exists {Pa, Pb, …, Pd} ⊆ {P0, P1, …, Pn} such that Pa waits for Pb, Pb waits for Pc, …, Pd waits for Pa.
+
+Resource allocation graph (used to identify if deadlocks will occur):
+
+- G = (V,E)
+- V is partitioned in 2 parts, P and R
+  - P = set of processes
+  - R = set of resources
+- Request edge - directed edge from Pi to Rj
+- Assignment edge - directed edge from Rj to Pi
+- Different symbols for processes and resources
+  - Process (Pn) is a circle
+  - Resource (Rn) is a square with n dots inside, where n is the amount of that resource
+- ![Resource graph without deadlock](resource_graph_no_deadlock.png) No deadlock in this resource graph.
+- ![Resource graph with deadlock](resource_graph_with_deadlock.png) Deadlock in this resource graph - there is a cycle inside of waiting processes and further investigation shows a deadlock exists.
+- No cycle = no deadlock
+- Cycle = need to look further - not necessarily a deadlock
+  - Can manually find for small examples
+  - Need an algorithm for larger graphs
+
+Deadlock detection algorithm:
+
+- Create a table representing the graph
+  - ![Tabular version of graph resource allocation](tabular_resource_allocation.png)
+- This table represents the below graph
+  - ![Graph of resource allocation](graph_tabular_resource_allocation.png)
+- Flags indicating the current state of processes are also required - finished or incomplete
+- Once a process is complete, the flag is set to true, indicating that it is complete and it's resources can be released
+- A process has its flag set true when the request section of the table contains only 0s
+- If no process can be set as complete by allocating available resources, then there is a deadlock (there is no deadlock in the example)
+
+Handling deadlocks:
+
+- Preventing deadlocks
+  - A deadlock has necessary conditions - ensure that at least one of these does not happen to prevent a deadlock
+    - Mutual exclusion - cannot be prevented for non-sharable resources, e.g. printer, files, etc
+    - Hold and Wait - guarantee that when a process requests a resource it is not currently holding any other resources
+      - Can be done by having a process request and receive all resources at once
+    - No preemption - if a process holding some resources requests additional resources that are not immediately given, release all resources currently held by that process and allocate them back at the same time as the additional resources
+    - Circular wait - number resources and require each process to request resources in increasing order
+      - A process holding Rn cannot request Ri where i < n.
+  - Deadlock prevention creates restrictive system where harmless requests are blocked
+    - Consider P1 and P2 both require R1 and R2. R2 is already held by P1, and then P1 requests R1. As R1 < R2, the request is blocked. It is safe to grant the request however as there is no cycle in the resulting system, even if P2 then requests both resources held by P1.
+- Avoiding deadlocks
+  - Less restrictive than deadlock prevention
+  - Determines if a request should be granted based on if resulting allocation is a safe state
+  - Safe state is where a deadlock can never occur, no matter the future requests
+  - The avoidance algorithm needs information on specific requirements of each process
+    - Stated by each process - max number of instances of each resource type is needs
+    - When a resource request is received, the deadlock avoidance algorithm checks if granting resource leaves system in a safe state
+    - If safe then the resource is granted, else wait until state changes to where granting resource is safe
+  - Determining if a state is safe
+    - Banker's safety algorithm
+      - Consider 5 processes P0 - P4 with 3 resource types: 10 A, 5 B, 7 C
+        - Current table
+        - ![Banker safety max](banker_safety_max.png)
+        - ![Banker safety need](banker_safety_need.png) Need = max - allocation: the amount of a resource the process may request in the future given its current allocation.
+        - The banker's safety algorithm proceeds in steps, and in each step a process is found which can proceed with the currently available resource
+        - Once the process has completed, the resources it was holding can then be reclaimed
+        - e.g., P1 can be completed with the available resources and so is processed, giving the next table
+        - ![Banker safety next step](banker_safety_next_step.png)
+        - Steps are repeated and if at the end all processes are complete, the initial state is safe
+    - Resource request algorithm
+      - When a request is received, use the bankers safety state algorithm starting with the state after granting the request to determine if it is safe to do so
+      - If so, grant request immediately
+      - Else keep request pending until next state change and check again
+
+**Starvation:**
+
+- A thread waits indefinitely while other threads make progress (opposite of bounded waiting).
+- Can be avoided by randomly choosing threads to wake if multiple are waiting, or by waking the longest waiting thread.
+
+**Priority Inversion:**
+
+- Scheduling issue when a low priority thread holds a lock required by a high priority thread. A medium priority thread takes CPU time from the low priority thread while it is in the critical section and so the high priority thread is delayed.
+  - ![priority inversion example](priority_inversion.png)
+  - Can be fixed by '*priority-inheritance*' - the priority of the thread taking the lock is upgraded to the highest priority of the threads waiting for the lock.
+
+## **Classic Synchronisation Problems**
+
+These are used to test new synchronisation schemes to ensure that they fully solve the issues.
+
+**Bounded Buffer problem:**
+
+- *n* buffers, each can hold one item.
+- Producers create items and add them to buffers and Consumers remove items from buffers to process them.
+- Producers should never be able to write to the same buffer or write to a full buffer.
+- Consumers should not be able to take the same item from a buffer or try to read from an empty buffer.
+
+**Readers and Writers problem:**
+
+- A data set is shared among concurrent processes
+  - Readers do not update the data set, only look at the data inside
+  - Writers both read and write to the data set
+- Multiple readers should be able to access the data set at any time as they do not modify it
+- Only a single writer should be able to access the data set at any one time
+- Readers have preference over writers if both waiting - writers may starve even in ideal solutions.
+
+**Dining Philosophers problem:**
+
+- Circular table of philosophers, each with a chopstick to their right in between them and the next person.
+- Each person needs both chopsticks to be able to eat and releases them when done. Can only take the chopsticks next to them.
+- In 5 person case:
+  - ![Dining philosophers](dining_philosophers.png)
+  - Semaphore chopstick[5] all initialised to 1.
+  - Failed solution: if all people start at the same time and pick up a chopstick each, then deadlock occurs.
+    - ![Dining philosophers failed solution](dining_philosophers_failed.png)
+  - Solutions:
+    - Restrict number of people sitting down to 1 less than the number of seats - inefficient but would work.
+    - Only allow a philosopher to pick up the chopsticks if both are available - picking is done withing a critical section.
+    - Alternating order of picking up chopsticks - every other person picks up the chopsticks left then right, while the others pick up chopsticks right then left.
 
 ## **Thread types and Threading models**
 
