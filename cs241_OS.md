@@ -1,4 +1,4 @@
-# Intro to OS
+# Intro to Operating Systems
 
 What is an operating system – no universal definition, but generally software acting as intermediary between user and hardware.
 
