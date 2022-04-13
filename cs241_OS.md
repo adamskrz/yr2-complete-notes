@@ -661,65 +661,154 @@ In multi-threaded programs, signals can be delivered to all or specific threads.
   - The logical address is the offset of the base register
   - Limit register contains the largest allowed address - if logical address is greater than limit then a memory addressing error has occurred
 
-## **Memory Allocation**
+# **Memory Allocation**
 
-- Deals with how OS allocates and protects memory
-- Contiguous Memory Allocation
-  - Each process is contained in contiguous blocks of memory starting from a base address
-  - Used in old OS, e.g. IBM
-  - MMU has relocation (base) register and limit register with values decided by OS - where to store a process and how much memory the process is allowed
-  - Registers are only changed by the OS when a process is scheduled for execution
-    - As access to registers is limited to OS, a process's memory cannot be accessed by another
-  - Fixed size memory partitions
-    - Memory is separated into fixed size partitions
-    - Each partition is given to one process
-    - When a process is terminated, the partition is freed
-  - Variable size memory partitions
-    - Any available block of memory is called a hole. These holes are scattered throughout memory and OS keeps track of them.
-    - When a process is loaded into memory, it is given some memory from a single hole large enough to accommodate it.
-    - When a process terminates, it's memory is freed, creating a hole. Adjacent holes are always joined to create a single, larger hole.
-			§ 
-			§ Dynamic storage allocation problem - which hole to take memory from?
-				□ First-fit - allocate memory from first hole big enough (fast)
-				□ Best-fit - allocate memory from smallest hole big enough for process (leaves smallest left-over hole, slow unless holes stored ordered by size)
-				□ Worst-fit - allocate memory from largest hole (leaves largest left-over hole, slow unless holes ordered by size)
-		○ Fragmentation
-			§ Usability of leftover space needs to be considered
-			§ External fragmentation - total memory space exists to satisfy memory requirements but not in contiguous blocks
-				□ Caused by variable partitioning
-				□ Keeping track of holes can have high overhead if large number of small holes
-			§ Internal fragmentation
-				□ Allocated partition is much larger than actual memory used by process
-		○ Dealing with fragmentation
-			§ Compaction
-				□ Shuffle memory contents to place all free memory into single contiguous blocks
-				□ Only possible if processes can be relocated during execution, so OS must use execution-time binding
-				□ Can have large overhead as each time a process terminates, all other processes memory blocks are moved
-			§ Non-contiguous memory allocation
-				□ Processes memory space is scattered across memory blocks
-	• Non-contiguous memory allocation
-		○ Segmentation
-			§ Program is divided into segments
-			§ Each segment is stored in contiguous memory blocks, but segments aren't stored contiguously
-			§ Each logical address is now a tuple: (segment-number, offset)
-			§ The segment number has a base address and offset completes the physical address
-			§ Segment table
-				□ Indexed by segment number and has a segment base and segment limit for each
-				□ Then works as normal in address accessing
-			§ Still causes external fragmentation
-		○ Paging
-			§ Divide program into fixed sized blocks called pages
-			§ Divide physical memory into fixed size blocks called frames
-			§ Page size = frame size (typically 4KB)
-			§ Assign each page of program to a frame - all holes can fit an exact amount of pages
-			§ A process's page table stores mapping from the process's page numbers to frame numbers and includes all addressable pages, not just the amount the process uses. e.g. 32 bit address space and 4KB page size gives a page table of 2^20=1,048,576 pages for all processes, even if only a few hundred are used.
-			§ Each logical address used by CPU is divided into
-				□ Page number - used to index the page table for the process and find the correct frame
-				□ Page offset - combine with base (frame) address to find physical address
-				□ If logical address is m bits and page size is 2^n bits then only the last n bits are used to denote page offset
-			§ Still causes internal fragmentation, as all page sizes are the same
-				□ The waste is usually very small as the max wastage must be less than a frame size
-				□ Average is 1/2 page size
-				□ Smaller page sizes give smaller waste, but larger page tables and overhead 
-				□ Page sizes can be variable in an OS depending on the data stored
+Deals with how OS allocates and protects memory
 
+## Contiguous Memory Allocation
+
+Each process is contained in contiguous blocks of memory starting from a base address. This was done in old OS, e.g. IBM OS. It uses an MMU with a relocation (base) register and limit register with values decided by OS - where to store a process and how much memory the process is allowed. These registers are only changed by the OS when a process is scheduled for execution and are filled with the correct base address and memory limit for that process.
+
+There are two options for decided how much memory to assign to a process: fixed and variable.
+
+### **Fixed size memory partitions:**
+
+- Memory is separated into fixed size partitions
+- Each partition is given to one process
+- When a process is terminated, the partition is freed
+
+### **Variable size memory partitions:**
+
+- Any available block of memory is called a hole. These holes are scattered throughout memory and OS keeps track of them.
+- When a process is loaded into memory, it is given some memory from a single hole large enough to accommodate it.
+- When a process terminates, it's memory is freed, creating a hole. Adjacent holes are always joined to create a single, larger hole.
+  - ![Variable size partition hole joining](variable_size_hole.png)
+- Dynamic storage allocation problem - which hole to take memory from?
+  - First-fit - allocate memory from first hole big enough (fast)
+  - Best-fit - allocate memory from smallest hole big enough for process (leaves smallest left-over hole, slow unless holes stored ordered by size and can lead to more fragmentation)
+  - Worst-fit - allocate memory from largest hole (leaves largest left-over hole, slow unless holes ordered by size)
+
+### **Fragmentation:**
+
+- Usability of leftover space needs to be considered
+- External fragmentation - total memory space exists to satisfy memory requirements but not in contiguous blocks
+  - Caused by variable partitioning
+  - Keeping track of holes can have high overhead if large number of small holes
+- Internal fragmentation
+  - Allocated partition is much larger than actual memory used by process
+
+### **Dealing with fragmentation:**
+
+- Compaction
+  - Shuffle memory contents to place all free memory into single contiguous blocks
+  - Only possible if processes can be relocated during execution, so OS must use execution-time binding
+  - Can have large overhead as each time a process terminates, all other processes memory blocks are moved
+- Non-contiguous memory allocation
+  - Processes memory space is scattered across memory blocks
+
+## Non-contiguous memory allocation
+
+### **Segmentation**
+
+A process' memory is divided into variable size segments.
+
+- Each segment is stored in contiguous memory blocks, but segments aren't stored contiguously
+- Each logical address is now a tuple: (segment-number, offset)
+- The segment number has a base address and offset completes the physical address
+- Segment table
+  - Indexed by segment number and has a segment base and segment limit for each
+  - Then works as normal in address accessing
+- Still causes external fragmentation
+
+### **Paging**
+
+A process' memory is divided into fixed sized blocks called '*pages*'. Physical memory is also divided into fixed size blocks called '*frames*', which are the same size as pages (typically 4KB). Page sizes can be variable in an OS depending on the data stored, but is almost always fixed.
+
+Each page of program is assigned to a frame - all holes are an exact amount of frames, and so all holes can fit an exact amount of pages.
+
+A process's '*page table*' stores the mapping from the process's page numbers to frame numbers and includes all addressable pages, not just the amount the process uses. e.g. a 32 bit address width and 4KB page size gives a page table of 2^20=1,048,576 pages (with 12 bits used for addressing inside the 4KB page as 2^12=4,096) for all processes, even if only a few hundred are used.
+
+Each logical address used by CPU is divided into:
+
+- **Page number** - used to index the page table for the process and find the correct frame
+- **Page offset** - combine with base (frame) address to find physical address
+- If logical address is m bits and page size is 2^n bits then only the last n bits are used to denote page offset
+
+Paging still causes internal fragmentation, as all page sizes are the same. However, the waste is usually very small as the max wastage must be less than a frame size and the average is 1/2 page size. Smaller page sizes give smaller waste, but larger page tables and overhead so 4KB is the usual.
+
+### **Page Table Implementation**
+
+The page table stores the mapping between page numbers of a process and frame numbers and is stored in memory with the process. It is possible to move the page table to MMU and store it in small fast registers, but this is unsuited to modern systems as the page table has millions of entries.
+
+Page tables are accessed directly from memory by storing the base address of the page table in a register, called the page table base register (PTBR), which is loaded with the base address of a process's page table when that process is scheduled.
+
+Each time the CPU generates a logical address, the page number is added to the base page address to find the correct frame. This means the overhead of memory access is at least doubled, as data is fetched from memory to covert the logical address to physical address from which to fetch more data - essentially two memory calls.
+
+![Page table diagram](basic_page_table_implementation.png)
+
+**Translation Lookaside Buffer (TLB):**
+
+A hardware cache to store frequently used entries in a page table, usually < 256. When a logical address is requested by the CPU, the TLB is searched for the page number at the same time as the page table, increasing the speed of finding the correct frame. Searching the entire TLB takes < 1 CPU cycle, adding almost no overhead to the search.
+
+![Page table diagram with TLB](paging_with_tlb.png)
+
+If the page isn't in the TLB, it is a cache miss, and the requested page is added to the TLB by removing an already existing entry.
+
+Cache replacement algorithm - choosing the entry to remove:
+
+- Each algorithm has a hit ratio, the average proportion of the time a page is found in the TLB
+  - Popular choice is least recently used (LRU)
+- The effective access time (EAT) depends on the hit ratio and memory access time
+  - EAT = hit ratio \* memory access + (1 - hit ratio) \* 2 \* memory access
+  - e.g. 0.95 hit ratio and 100ns access time gives
+    - 0.95*100 + 0.05*2*100 = 105ns
+
+The buffer can store page table entries for multiple process, and for each entry in the TLB there is an '*address space identifier*' (ASID) to identify the process. If the ASIDs match then the frame is returned, otherwise it counts as a cache miss - this is for memory protection.
+
+### **Smaller page tables:**
+
+Smaller tables are beneficial as:
+
+- Reduce memory overhead
+- Reduce page search time in case of TLB miss
+
+However, they are hard to use as modern systems use 32/64bit address spaces. With just 32bit addresses and 4KB page size, there are 2^(32-12)=1,048,576 entries in each processes page table. If each entry in a page table requires 4bytes (32 bit address), then the size of a process's page table is 4MB - a lot of memory to just store the page table of a single process. With 100s of process, this is unusable.
+
+### **Page Table Structuring:**
+
+A '*valid-invalid bit*' is used for each page table entry to indicate there is a physical memory frame corresponding to the page number (0 if valid, 1 if invalid). The large majority of page table entries are invalid.
+
+**Hierarchical/multilevel paging tables:**
+
+Divide page table into multiples page tables that each take up a single frame and store them in separate pages - paging the page table.
+
+Have an outer page table that points to the correct inner page table for each page number - can be done multiple times to create multiple levels of page tables, until the outermost table fits in one page. Multiple page numbers point to the same entry.
+
+This reduces amount of page tables required (and memory space used), as if an outer page table has its invalid bit set for an entry, the page table that would correspond to that entry isn’t stored by the OS. Hierarchical page table below uses 3 pages, while the flat table uses 4.
+![Hierarchical page tables](hierarchical_page_tables.png)
+
+- Example - 32bit addresses, 4KB page size, 4 bytes per page table entry
+  - Flat table requires 4MB page table per process
+  - To store inner page tables requires 4MB/4KB frames - 1024 frames
+  - Outer page tables has 1024 entries of 4 bytes, giving 4KB - fits in 1 frame, no further paging needed
+  - As each entry in the outer page table that is invalid doesn't have a corresponding inner page table, the maximum wasted space is 8KB - 4KB from the outer page table and 4KB from an almost empty end page
+
+**Addressing using multi-level paging:**
+
+Assuming 32bit addressing with 4KB pages, then outer and inner page tables both have 10 bits, and page offset of 12 bits. 3 memory accesses required to read memory location (2 is required for flat table).
+![Multi-level paging](multi_level_paging.png)
+
+Overall, multi-level paging reduces memory overhead and increases memory accesses required to read/write data in case of TLB miss.
+
+**Hashed page tables:**
+
+Page numbers serve as hash keys and are hashed to an index of the PT. Each entry in a hashed PT is a pointer to a linked list of page numbers having the same hash value. Each node in the list contains the page number, frame number and a pointer to the next node - if the page numbers match then use that node's frame, else check the next node (linear search).
+![Hashed page table](hashed_page_tables.png)
+
+**Inverted Page Table:**
+
+There is a single page table, where each page table index corresponds to a physical frame number. Each entry has a PID and page number (frame is not explicitly stored). When a logical address translated to physical, the table is searched for the process's PID and the requested page number, then the index of that entry is the frame number (base address).
+
+As only 1 page table is required in the entire system, the memory overhead is a lot smaller. However, there is increased time to search as it is linear, and the worst case where the entire PT is searched is extremely bad.
+
+Inverted page tables are not used in modern systems due to their poor performance, but were used by PowerPC and Itanium.
