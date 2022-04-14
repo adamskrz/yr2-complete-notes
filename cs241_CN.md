@@ -71,3 +71,70 @@ The rate at which bits are transferred between a specific communicating pair of 
 *Instantaneous:* rate at a given point in time (average over a very small period).
 
 *average:* rate over a longer period or entire duration of communication.
+
+'*bottleneck link*': The link on an end-to-end path with the smallest throughput, limiting the total throughput to that link's speed (average will be this throughput too).
+
+### Packet Switching vs Circuit Switching
+
+Packet Switching:
+
+- Resources can be shared between flows/communicating pairs
+- Packets can be delayed or lost
+- Multiple flows can use the same link at once, good use of resources
+
+Circuit Switching:
+
+- Resources can only be used by one flow/communicating pair for the duration of communication: this is called a circuit
+- Guaranteed rate of transmission and no delay/losses during communication
+- Doesn't allow multiple flows to use the same resource at the same time, so poor use of resources with 'bursty' traffic
+
+## **Communication Protocols**
+
+Protocols define rules of communication - the format and order of messages sent/received, as well as actions taken on message transmission/receipt.
+
+These can be implemented in software that runs on nodes/routers, or in hardware using logic. Most protocols are specified by the Internet Engineering Task Force (IETF), though other bodies like the Institute of Electronics and Electrical Engineers (IEEE) specify some standard like Ethernet and WiFi.
+
+### Layering
+
+Network protocols and devices need to perform many complex functions. These functions are divided into layers where layer N provides services to N+1 and uses services from N-1. Layering makes it easier to add services or change implementations in a layer without affecting the rest of the layers.
+
+The internet protocol (IP) stack has 5 layers that contain all possible functions. Not all layers have to be present in a network device, e.g. packet switches do not use the application layer.
+
+![IP layer stack](IP_layers.png)
+
+'*IP address*': unique software ID of an end host (not all nodes have an IP address).
+
+'*MAC address*': Media Access Control address, the unique physical ID of a node in the network (all nodes in a network have a MAC address)
+
+Each layer adds their own header to the packet with data specific to that layers protocols. As the packet is processed at nodes, the layers are stripped away and added with updated data to be sent to the next node, e.g. the hardware address of the next node.
+
+![Layer encapsulation](layer_encapsulation.png)
+
+# Application Layer
+
+## Network Applications
+
+A process running on a host machine that uses the network to send messages to a process on a different host machine is a network application. E.g. email, peer-to-peer file sharing, web servers, etc. *Client processes* request data, and *server processes* provide data.
+
+If not using standard protocols, a developer generally has to create both the client and server sides of the application. Standard protocols (HTTP, SMTP, etc) allow developers to only create one side, and the protocol dictates how it would communicate with the other side.
+
+## Sockets
+
+'*Sockets*' allow application layer user network processes access to the kernel-controlled network layers. Creating, reading from and writing to sockets is done using system calls.
+
+## Ports
+
+Ports are 16 bit numbers from 0-65535. These are used to identify which process running on a machine to deliver packets to once at the end host. Port numbers 0-1023 are reserved for standard network applications, e.g. 80 for HTTP, 25 for SMTP, etc. User application processes can use any other port above 1023.
+
+# Transport Layer
+
+All transport layer protocols offer some basic services:
+
+- packetisation, addressing, sequencing, error correcting bits
+
+There are two main transport layer protocols used in the internet: Transmission Control Protocol (TCP) and User Datagram Protocol (UDP).
+
+## TCP
+
+### Services
+
