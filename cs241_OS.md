@@ -326,6 +326,7 @@ Web-servers are an example of a good use of multithreading, where many clients w
 ### **Amdahl's Law**
 
 ![Amdahl's law](Amdahl_law.png "Amdahl's law")
+
 Where P = proportion of process that can be parallelised using N cores and there is no overhead from adding parallelism.
 
 ## **Thread (and process) Synchronisation**
