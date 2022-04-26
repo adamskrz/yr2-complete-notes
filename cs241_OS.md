@@ -331,7 +331,7 @@ Where P = proportion of process that can be parallelised using N cores and there
 
 ## **Thread (and process) Synchronisation**
 
-Threads and processes will be referred to as just threads from now on as it is essentially the same.
+Threads and processes will be referred to as just threads from now on as they are essentially the same.
 
 Threads must be synchronised in accesses to shared variables/memory/files. This is to ensure that changes made by threads are not overwritten by other threads with older versions of the data.
 
