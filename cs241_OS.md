@@ -177,7 +177,7 @@ Time-sharing systems like Linux/Windows don’t have a long term scheduler and d
 - Each process is given a priority and assigned in order of priority.
 - Can be preemptive or not, like SJF.
 - Starvation is an issue - very low priority processes may never get scheduled if there is a large amount of incoming processes.
-  - '*Aging*' solves this my gradually increasing the priority of processes that haven't been scheduled.
+  - '*Aging*' solves this by gradually increasing the priority of processes that haven't been scheduled.
 
 **Round robin (RR):**
 
